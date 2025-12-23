@@ -1,0 +1,27 @@
+config {
+    type: "table",
+    schema: "marts",
+    description: "Top 100 overworked taxi IDs without taking 8 hour breaks in Q4 of 2023 (last 3 months of available data)"
+}
+
+-- Analyses taxi trip patterns by calculating the gap between consecutive trips for each taxi
+WITH trip_sequences AS (
+  SELECT
+    taxi_id,
+    trip_start_timestamp,
+    trip_end_timestamp,
+    trip_hours,
+    trip_date,
+    -- Calculate time until next trip (in hours) for each individual taxi
+    TIMESTAMP_DIFF(
+      LEAD(trip_start_timestamp) OVER (PARTITION BY taxi_id ORDER BY trip_start_timestamp),
+      trip_end_timestamp,
+      HOUR
+    ) as hours_until_next_trip
+  FROM
+    ${ref("stg_taxi_trips")}
+  WHERE
+    -- Last 3 months of available data (Q4 2023)
+    trip_start_timestamp >= '2023-10-01'
+    AND trip_start_timestamp < '2024-01-01'
+),
