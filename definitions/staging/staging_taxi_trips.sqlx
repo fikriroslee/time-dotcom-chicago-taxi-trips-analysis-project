@@ -1,10 +1,10 @@
 config {
     type: "view", // Creates a virtual table in BigQuery
     schema: "staging", // Places the query results in the "staging" dataset in BigQuery
-    description: "Cleaned and filter taxi trips data" // Documents what this model (table/view) does
+    description: "Staging layer for Chicago taxi trips: filters for 2023 data, removes duplicates, adds calculated fields for trip duration and date components" // Documents what this model (table/view) does
 }
 
-SELECT
+SELECT DISTINCT
   unique_key,
   taxi_id,
   trip_start_timestamp,
@@ -26,10 +26,12 @@ SELECT
   trip_seconds / 3600 AS trip_hours,
   -- Extract date components
   DATE(trip_start_timestamp) AS trip_date,
-  EXTRACT(DAYOFWEEK FROM trip_start_timestamp) AS day_of_week,
+  EXTRACT(YEAR FROM trip_start_timestamp) AS trip_year,
   EXTRACT(MONTH FROM trip_start_timestamp) AS trip_month,
-  EXTRACT(YEAR FROM trip_start_timestamp) AS trip_year
-FROM `bigquery-public-data.chicago_taxi_trips.taxi_trips`
+  EXTRACT(DAYOFWEEK FROM trip_start_timestamp) AS day_of_week,
+  EXTRACT(HOUR FROM trip_start_timestamp) AS hour_of_day
+FROM 
+  `bigquery-public-data.chicago_taxi_trips.taxi_trips`
 WHERE
   -- Filter for data quality
   taxi_id IS NOT NULL
@@ -39,6 +41,6 @@ WHERE
   AND trip_miles > 0
   AND fare >= 0
   AND tips >= 0
-  -- Use data from 2023 (most recent complete year)
+  -- Use data from 2023 (most recent complete year available)
   AND trip_start_timestamp >= '2023-01-01'
   AND trip_start_timestamp < '2024-01-01'
