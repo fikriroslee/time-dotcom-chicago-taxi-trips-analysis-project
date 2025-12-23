@@ -1,0 +1,78 @@
+config {
+    type: "table",
+    schema: "marts",
+    description: "Top 100 overworked taxi IDs without taking 8 hour breaks in Q4 of 2023 (last 3 months of available data)"
+}
+
+-- Initialising Common Table Expressions (CTEs)
+-- CTE 1: Analyses taxi trip patterns by calculating the gap between consecutive trips for each taxi
+WITH trip_sequences AS (
+  SELECT
+    taxi_id,
+    trip_start_timestamp,
+    trip_end_timestamp,
+    trip_hours,
+    trip_date,
+    -- Calculate time until next trip (in hours) for each individual taxi
+    TIMESTAMP_DIFF(
+      LEAD(trip_start_timestamp) OVER (PARTITION BY taxi_id ORDER BY trip_start_timestamp),
+      trip_end_timestamp,
+      HOUR
+    ) AS hours_until_next_trip
+  FROM
+    ${ref("staging_taxi_trips")}
+  WHERE
+    -- Last 3 months of available data (Q4 2023)
+    trip_start_timestamp >= '2023-10-01'
+    AND trip_start_timestamp < '2024-01-01'
+),
+
+-- CTE 2: Analyses taxis with insufficient breaks and long shifts
+shifts_without_break AS (
+  SELECT
+    taxi_id,
+    trip_start_timestamp,
+    trip_end_timestamp,
+    trip_hours,
+    hours_until_next_trip,
+    trip_date,
+    -- Flag if break is less than 8 hours
+    CASE 
+      WHEN hours_until_next_trip < 8 AND hours_until_next_trip IS NOT NULL 
+      THEN 1 
+      ELSE 0 
+    END AS insufficient_break,
+    -- Flag long shifts (over 10 hours)
+    CASE 
+      WHEN trip_hours > 10 
+      THEN 1 
+      ELSE 0 
+    END AS long_shift
+  FROM
+    trip_sequences
+)
+
+-- Main query: Showcase taxi IDs with insufficient breaks (less than 8 hours) and more working hours
+SELECT
+  taxi_id,
+  COUNT(*) AS total_trips,
+  COUNT(DISTINCT trip_date) AS days_worked,
+  SUM(trip_hours) AS total_hours_worked,
+  AVG(trip_hours) AS avg_trip_duration_hours,
+  SUM(insufficient_break) AS shifts_without_8hr_break,
+  SUM(long_shift) AS long_shifts_over_10hrs,
+  ROUND(SUM(insufficient_break) / COUNT(*) * 100, 2) AS pct_shifts_without_break,
+  MAX(trip_hours) AS longest_single_shift_hours,
+  ROUND(SUM(trip_hours) / COUNT(DISTINCT trip_date), 2) AS avg_hours_per_day
+FROM
+  shifts_without_break
+GROUP BY
+  taxi_id
+HAVING
+  -- Define overworkers as those regularly working without proper breaks
+  shifts_without_8hr_break >= 10  -- At least 10 instances of insufficient break
+  OR long_shifts_over_10hrs >= 5  -- Or at least 5 very long shifts
+ORDER BY
+  shifts_without_8hr_break DESC,
+  total_hours_worked DESC
+LIMIT 100
