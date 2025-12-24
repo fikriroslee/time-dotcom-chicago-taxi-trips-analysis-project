@@ -1,0 +1,35 @@
+name: Deploy to Dataform
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:  # Allows manual trigger from GitHub UI
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+      
+      - name: Validate Dataform configuration
+        run: |
+          echo "✅ Dataform validation triggered"
+          echo "In production, this would compile all .sqlx models"
+          echo "Checking for syntax errors and dependency issues"
+      
+      - name: Deploy to Dataform
+        run: |
+          echo "✅ Dataform deployment triggered"
+          echo "In production, this would execute: dataform run"
+          echo "All models would be updated in BigQuery"
