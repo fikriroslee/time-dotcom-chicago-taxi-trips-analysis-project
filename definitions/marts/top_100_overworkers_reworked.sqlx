@@ -57,3 +57,25 @@ shifts_with_breaks AS (
         END AS excessive_shift_duration
     FROM daily_shifts
 )
+
+-- Main Query: Identify top 100 overworkers (aggregate by driver)
+SELECT
+    taxi_id,
+    COUNT(DISTINCT trip_date) AS days_worked,
+    SUM(num_of_trips_during_shift) AS total_trips_from_all_shifts,
+    ROUND(SUM(shift_duration_in_hours), 2) AS total_working_hours_from_all_shifts,
+    ROUND(AVG(shift_duration_in_hours), 2) AS avg_shift_duration_in_hours,
+    ROUND(SUM(total_driving_hours), 2) AS total_driving_hours,
+    SUM(insufficient_rest) AS shifts_without_8hr_rest,
+    SUM(excessive_shift_duration) AS shifts_over_12hrs,
+    ROUND(SUM(insufficient_rest) / COUNT(*) * 100, 2) AS pct_insufficient_rest,
+    MAX(shift_duration_in_hours) AS longest_shift_in_hours
+FROM shifts_with_breaks
+GROUP BY taxi_id
+HAVING
+    shifts_without_8hr_rest >= 10
+    OR shifts_over_12hrs >= 5
+ORDER BY
+    shifts_without_8hr_rest DESC,
+    total_working_hours_from_all_shifts DESC
+LIMIT 100
