@@ -1,46 +1,41 @@
 config {
     type: "view", // Creates a virtual table in BigQuery
     schema: "staging", // Places the query results in the "staging" dataset in BigQuery
-    description: "Staging layer for Chicago taxi trips: filters for 2023 data, removes duplicates, adds calculated fields for trip duration and date components" // Documents what this model (table/view) does
+    description: "Staging layer for Chicago taxi trips: filters for 2021- 2023 data, removes duplicates, adds calculated fields for trip duration and date components" // Documents what this model (table/view) does
 }
 
-SELECT DISTINCT
-  unique_key,
-  taxi_id,
-  trip_start_timestamp,
-  trip_end_timestamp,
-  trip_seconds,
-  trip_miles,
-  fare,
-  tips,
-  tolls,
-  extras,
-  trip_total,
-  payment_type,
-  company,
-  pickup_census_tract,
-  dropoff_census_tract,
-  pickup_community_area,
-  dropoff_community_area,
-  -- Calculate trip duration in hours
-  trip_seconds / 3600 AS trip_hours,
-  -- Extract date components
-  DATE(trip_start_timestamp) AS trip_date,
-  EXTRACT(YEAR FROM trip_start_timestamp) AS trip_year,
-  EXTRACT(MONTH FROM trip_start_timestamp) AS trip_month,
-  EXTRACT(DAYOFWEEK FROM trip_start_timestamp) AS day_of_week,
-  EXTRACT(HOUR FROM trip_start_timestamp) AS hour_of_day
-FROM 
-  `bigquery-public-data.chicago_taxi_trips.taxi_trips`
+SELECT
+    DISTINCT unique_key,
+    taxi_id,
+    trip_start_timestamp,
+    trip_end_timestamp,
+    -- Extract date components
+    DATE(trip_start_timestamp) AS trip_date,
+    EXTRACT(HOUR FROM trip_start_timestamp) AS trip_hour_of_day,
+    EXTRACT(DAYOFWEEK FROM trip_start_timestamp) AS trip_day_of_week,
+    EXTRACT(MONTH FROM trip_start_timestamp) AS trip_month_of_year,
+    EXTRACT(YEAR FROM trip_start_timestamp) AS trip_year,
+    trip_seconds,
+    -- Calculate trip duration in minutes
+    trip_seconds / 60 AS trip_minutes,
+    -- Calculate trip duration in hours
+    trip_seconds / 3600 AS trip_hours,
+    trip_miles,
+    fare,
+    tips,
+    tolls,
+    extras,
+    trip_total,
+    payment_type,
+    company
+FROM `bigquery-public-data.chicago_taxi_trips.taxi_trips`
 WHERE
-  -- Filter for data quality
-  taxi_id IS NOT NULL
-  AND trip_start_timestamp IS NOT NULL
-  AND trip_end_timestamp IS NOT NULL
-  AND trip_seconds > 0
-  AND trip_miles > 0
-  AND fare >= 0
-  AND tips >= 0
-  -- Use data from 2023 (most recent complete year available)
-  AND trip_start_timestamp >= '2023-01-01'
-  AND trip_start_timestamp < '2024-01-01'
+    taxi_id IS NOT NULL
+    AND trip_start_timestamp IS NOT NULL
+    AND trip_end_timestamp IS NOT NULL
+    AND trip_seconds > 0
+    AND trip_miles > 0
+    AND fare > 0
+    -- Filter data from 2021-2023
+    AND trip_start_timestamp >=  '2021-01-01'
+    AND trip_end_timestamp < '2024-01-01'
